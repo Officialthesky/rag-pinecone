@@ -9,9 +9,6 @@ import chatRouter from './server/routes/chat.js';
 
 // Add this with your other app.use statements
 
-
-dotenv.config();
-
 const app = express();
 const port = process.env.PORT || 3001;
 
@@ -25,16 +22,6 @@ app.use(express.json());
 app.listen(3002, () => {
   console.log('Backend running on http://localhost:3002');
 });
-
-app.post('/delete-index', async (req, res) => {
-  try {
-    await deletePineconeIndex('suraj');
-    res.status(200).send('Index deleted');
-  } catch (error) {
-    res.status(500).send('Error deleting index');
-  }
-});
-
 
 app.use('/api', uploadRouter);
 app.use('/api', chatRouter);
