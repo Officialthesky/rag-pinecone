@@ -14,8 +14,19 @@ env.TRANSFORMERS_CACHE = '/tmp/transformers-cache'; // Writable directory for se
 const app = express();
 const port = process.env.PORT || 3002;
 
+const allowedOrigins = [
+  'https://rag-pinecone.vercel.app', // Your Vercel domain
+  'http://localhost:3000', // Local development
+];
+
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production' ? 'https://rag-pinecone.vercel.app' : 'http://localhost:3000',
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
 }));
 app.use(express.json());
@@ -33,6 +44,8 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).send('Something broke!');
 });
+
+console.log(`Environment: ${process.env.NODE_ENV}`);
 
 export default app; // Export the app for external use (e.g., API handler)
 
