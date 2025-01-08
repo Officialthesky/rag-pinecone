@@ -1,9 +1,10 @@
 import { X, FileSpreadsheet, AlertCircle } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { FcBusinessman, FcAssistant } from "react-icons/fc";
 import { IoIosSend } from "react-icons/io";
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm'; 
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { materialDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
@@ -23,6 +24,51 @@ const FileUpload = () => {
   const [currentTopicId] = useState(1);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [sheets, setSheets] = useState([]);
+  const [selectedSheet, setSelectedSheet] = useState('');
+  const [previewDataBySheet, setPreviewDataBySheet] = useState({});
+
+  const [leftPanelWidth, setLeftPanelWidth] = useState(320); // 320px default width (w-80)
+  const [isResizing, setIsResizing] = useState(false);
+  const maxWidth = typeof window !== 'undefined' ? window.innerWidth * 0.5 : 960; // 50% of window width
+  const minWidth = 280; // Minimum width in pixel
+
+
+  const handleMouseDown = useCallback(() => {
+    setIsResizing(true);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  }, []);
+
+  const handleMouseUp = useCallback(() => {
+    setIsResizing(false);
+    document.body.style.cursor = 'default';
+    document.body.style.userSelect = 'auto';
+  }, []);
+
+  const handleMouseMove = useCallback(
+    (e) => {
+      if (isResizing) {
+        let newWidth = e.clientX;
+        if (newWidth < minWidth) newWidth = minWidth;
+        if (newWidth > maxWidth) newWidth = maxWidth;
+        setLeftPanelWidth(newWidth);
+      }
+    },
+    [isResizing, maxWidth]
+  );
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+    }
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizing, handleMouseMove, handleMouseUp]);
 
   const messagesEndRef = useRef(null);
   const currentTopic = topics.find((t) => t.id === currentTopicId);
@@ -126,6 +172,7 @@ const FileUpload = () => {
     return (
       <div className="prose prose-sm max-w-none text-left">
         <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
           components={{
             code: ({ node, inline, className, children, ...props }) => {
               const match = /language-(\w+)/.exec(className || '');
@@ -159,9 +206,20 @@ const FileUpload = () => {
         setIsIndexing(true);
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-        const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-        setPreviewData(jsonData);
+        
+        // Store all sheets data
+        const sheetsData = {};
+        const sheetNames = workbook.SheetNames;
+        
+        sheetNames.forEach(sheetName => {
+          const sheet = workbook.Sheets[sheetName];
+          sheetsData[sheetName] = XLSX.utils.sheet_to_json(sheet);
+        });
+
+        setSheets(sheetNames);
+        setSelectedSheet(sheetNames[0]); // Select first sheet by default
+        setPreviewDataBySheet(sheetsData);
+        setPreviewData(sheetsData[sheetNames[0]]); // Set first sheet as default preview
 
         await new Promise(resolve => setTimeout(resolve, 1000));
         setIsIndexing(false);
@@ -172,6 +230,11 @@ const FileUpload = () => {
       }
     };
     reader.readAsArrayBuffer(file);
+  };
+
+  const handleSheetChange = (sheetName) => {
+    setSelectedSheet(sheetName);
+    setPreviewData(previewDataBySheet[sheetName]);
   };
 
   const handleFileUpload = async (file) => {
@@ -217,69 +280,92 @@ const FileUpload = () => {
 
   return (
     <div className="min-h-screen bg-gray-900 flex">
-      <div className="w-80 bg-gray-800/50 p-6 border-r border-gray-700">
-        <div className="mb-4">
+      {/* Left Panel with dynamic width */}
+      <div 
+        className="bg-gray-800/50 border-r border-gray-700 relative"
+        style={{ width: leftPanelWidth, minWidth: minWidth, maxWidth: maxWidth }}
+      >
+        <div className="p-6">
           <h3 className="text-white text-lg font-semibold mb-2">Add your documents!</h3>
 
           {!previewData ? (
             <div
-              className="border-2 border-dashed border-gray-600 rounded-lg bg-gray-800/80 p-6 
+            className="border-2 border-dashed border-gray-600 rounded-lg bg-gray-800/80 p-6 
                          transition-all duration-200 cursor-pointer hover:border-gray-500
                          flex flex-col items-center justify-center min-h-[200px]"
-              onClick={() => fileInputRef.current?.click()}
-              onDrop={(e) => {
-                e.preventDefault();
-                const file = e.dataTransfer.files[0];
-                if (file?.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
-                  handleFileUpload(file);
-                } else {
-                  setError('Please upload an Excel file (.xlsx)');
-                }
+            onClick={() => fileInputRef.current?.click()}
+            onDrop={(e) => {
+              e.preventDefault();
+              const file = e.dataTransfer.files[0];
+              if (file?.type === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') {
+                handleFileUpload(file);
+              } else {
+                setError('Please upload an Excel file (.xlsx)');
+              }
+            }}
+            onDragOver={(e) => e.preventDefault()}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileUpload(file);
               }}
-              onDragOver={(e) => e.preventDefault()}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload(file);
-                }}
-                accept=".xlsx"
-                className="hidden"
-              />
-
-              <FileSpreadsheet className="w-12 h-12 text-gray-400 mb-4" />
-              <p className="text-sm text-gray-400 text-center mb-1">
-                Drag and drop file here
-              </p>
-              <p className="text-xs text-gray-500 mb-4">
-                Limit 200MB per file • XLSX
-              </p>
-              <button className="px-4 py-2 bg-gray-700 text-sm text-gray-300 rounded-md
-                               hover:bg-gray-600 transition-colors duration-200">
-                Browse files
-              </button>
-            </div>
+              accept=".xlsx"
+              className="hidden"
+            />
+  
+            <FileSpreadsheet className="w-12 h-12 text-gray-400 mb-4" />
+            <p className="text-sm text-gray-400 text-center mb-1">
+              Drag and drop file here
+            </p>
+            <p className="text-xs text-gray-500 mb-4">
+              Limit 200MB per file • XLSX
+            </p>
+            <button className="px-4 py-2 bg-gray-700 text-sm text-gray-300 rounded-md
+                             hover:bg-gray-600 transition-colors duration-200">
+              Browse files
+            </button>
+          </div>
           ) : (
             <div className="space-y-4">
               <div className="bg-gray-800/80 rounded-lg p-4">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center space-x-3">
-                    <FileSpreadsheet className="w-6 h-6 text-gray-400 shrink-0" />
-                    <div className="min-w-0">
-                      <p className="text-sm text-gray-300 font-medium truncate max-w-[180px]">
-                        {fileName}
-                      </p>
-                      <p className="text-xs text-gray-500">{fileSize}</p>
-                    </div>
-                  </div>
-                  <button onClick={handleClear}
-                    className="text-gray-500 hover:text-gray-400 p-1">
-                    <X className="w-4 h-4" />
-                  </button>
+            <div className="flex items-start justify-between">
+              <div className="flex items-center space-x-3">
+                <FileSpreadsheet className="w-6 h-6 text-gray-400 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm text-gray-300 font-medium truncate max-w-[180px]">
+                    {fileName}
+                  </p>
+                  <p className="text-xs text-gray-500">{fileSize}</p>
                 </div>
               </div>
+              <button onClick={handleClear}
+                className="text-gray-500 hover:text-gray-400 p-1">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+
+              {sheets.length > 0 && (
+            <div className="space-y-2">
+              <h4 className="text-sm text-gray-400 font-medium">Select Sheet</h4>
+              <div className="bg-gray-800/80 rounded-lg p-2">
+                <select
+                  value={selectedSheet}
+                  onChange={(e) => handleSheetChange(e.target.value)}
+                  className="w-full bg-gray-700 text-gray-300 rounded px-3 py-2 text-sm"
+                >
+                  {sheets.map((sheetName) => (
+                    <option key={sheetName} value={sheetName}>
+                      {sheetName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
 
               {isIndexing && (
                 <div className="bg-gray-800/50 rounded-lg p-4">
@@ -348,6 +434,18 @@ const FileUpload = () => {
               <span>{error}</span>
             </div>
           )}
+        </div>
+        <div
+          className="absolute top-0 right-0 bottom-0 w-1 cursor-col-resize 
+                     hover:bg-blue-500 transition-colors duration-150
+                     group"
+          onMouseDown={handleMouseDown}
+        >
+          {/* Visual indicator for resize handle */}
+          <div className="absolute top-0 right-0 bottom-0 w-1 
+                        group-hover:w-1 group-hover:right-0
+                        opacity-0 group-hover:opacity-100 
+                        bg-blue-500 transition-all duration-150"/>
         </div>
       </div>
 

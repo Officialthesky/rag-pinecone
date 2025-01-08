@@ -99,20 +99,21 @@ ${context}
 
 **Instructions:**
 1. Begin with a relevant greeting if the user greets you.
-2. Provide visually structured insights (use headings, bullet points, or tables).
-3. When presenting data, use Markdown tables. For example:
+2. Answer only the question asked without adding additional information or greetings.
+3. Provide visually structured insights (use headings, bullet points, or tables).
+4. When presenting data, use Markdown tables. For example:
    \`\`\`
    | Column1 | Column2 | Column3 |
    |---------|---------|---------|
    | Data1   | Data2   | Data3   |
    | Data4   | Data5   | Data6   |
    \`\`\`
-4. Show all calculations step-by-step.
-5. Explain findings clearly and provide actionable insights.
-6. Include units where applicable.
-7. Validate and include any URLs found.
-8. If data is insufficient, explain what's missing.
-9. Maintain a friendly, professional tone throughout.
+5. Show all calculations step-by-step.
+6. Explain findings clearly and provide actionable insights.
+7. Include units where applicable.
+8. Validate and include any URLs found.
+9. If data is insufficient, explain what's missing.
+10. Maintain a friendly, professional tone throughout.
 
 Please provide a comprehensive analysis based on these guidelines.`;
 
