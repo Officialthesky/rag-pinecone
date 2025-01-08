@@ -38,5 +38,8 @@ app.post('/delete-index', async (req, res) => {
 
 app.use('/api', uploadRouter);
 app.use('/api', chatRouter);
+app.use('/', () =>{
+  return res.send("working...")
+});
 
 
