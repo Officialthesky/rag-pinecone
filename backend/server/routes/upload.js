@@ -1,12 +1,22 @@
 import express from 'express';
 import multer from 'multer';
+import fs from 'fs';
+import path from 'path';
 import { EmbeddingService } from '../services/embeddings.js';
 import { PineconeService } from '../services/pinecone.js';
 import { createIndexAndUpsert } from '../scripts/pinecodeEmbeddings.js';
 
 const router = express.Router();
+
+// Ensure /tmp/uploads exists
+const uploadDir = '/tmp/uploads';
+if (!fs.existsSync(uploadDir)) {
+  fs.mkdirSync(uploadDir, { recursive: true });
+}
+
+// Configure multer to use /tmp/uploads
 const upload = multer({
-  dest: 'uploads/',
+  dest: uploadDir,
   limits: { fileSize: 200 * 1024 * 1024 }, // 200MB limit
 });
 
@@ -18,11 +28,17 @@ router.post('/upload', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'No file uploaded' });
     }
 
+    // Process the uploaded file
+    const filePath = req.file.path;
 
     // Process Excel file and get embeddings
-    const vectors = await embeddingService.processExcelFile(req.file.path);
+    const vectors = await embeddingService.processExcelFile(filePath);
 
-    await createIndexAndUpsert(vectors)
+    // Upload embeddings to Pinecone
+    await createIndexAndUpsert(vectors);
+
+    // Clean up temporary file
+    fs.unlinkSync(filePath);
 
     res.json({
       message: 'File processed and uploaded successfully',
